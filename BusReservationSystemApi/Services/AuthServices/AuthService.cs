@@ -4,6 +4,7 @@ using BusReservationSystemApi.Data.Configuration;
 using BusReservationSystemApi.Data.DBContext;
 using BusReservationSystemApi.Data.DTO.Request;
 using BusReservationSystemApi.Data.DTO.Response;
+using BusReservationSystemApi.Data.Enum;
 using BusReservationSystemApi.Data.Models;
 using BusReservationSystemApi.Helpers.Tokens;
 using BusReservationSystemApi.Services.EmailSenderService;
@@ -46,15 +47,78 @@ namespace BusReservationSystemApi.Services.AuthServices
 
 
 
-        public Task<ServiceResponse<bool>> RegisterUser(UserRegisterRequest registerRequest)
+        public async Task<ServiceResponse<bool>> RegisterUser(UserRegisterRequest registerRequest)
         {
-            throw new NotImplementedException();
+
+            var user = _mapper.Map<AppUser>(registerRequest);
+            user.AccountCreatedDate = DateTime.Now;
+            user.PwdExpiry = DateTime.Now.AddDays(90);
+            user.ExpiryDate = DateTime.Now.AddYears(10);
+            user.UserStatus = UserStatus.Active;
+            if (registerRequest.Password != registerRequest.ConfirmPassword)
+            {
+                return ServiceResponse<bool>.Failed("Please make sure to confirm your password.", null);
+            }
+            var result = await _userManager.CreateAsync(user, registerRequest.Password);
+            if (!result.Succeeded)
+            {
+                var serviceResponse = ServiceResponse<bool>.Failed(
+                    "Failed to create new user",
+                    result.Errors.Select(e => e.Description));
+                return serviceResponse;
+            }
+            await _userManager.AddToRoleAsync(user, UserRoles.User.ToString());
+            var send_email = await SendEmailConfirmation(registerRequest.Email);
+            var accessToken = await CreateAccessToken(user);
+            return ServiceResponse<bool>.Succeeded(true, "User created successfully");
         }
 
         public Task<ServiceResponse<UserLoginResponse>> ValidateUser(UserLoginRequest loginRequest)
         {
-            throw new NotImplementedException();
+            var user = await _userManager.FindByEmailAsync(loginRequest.Email);
+            if (user == null)
+                return ServiceResponse<UserLoginResponse>.Failed("Incorrect email", null);
+            var lockOutResult = await _userManager.IsLockedOutAsync(user);
+
+            if (_userManager.SupportsUserLockout && lockOutResult)
+                return ServiceResponse<UserLoginResponse>.Failed("User is locked out. Try again after 2 minutes", null);
+            if (await _userManager.CheckPasswordAsync(user,
+            loginRequest.Password))
+            {
+                if (user.UserStatus == UserStatus.Inactive)
+                    return ServiceResponse<UserLoginResponse>.Failed("User Status is Deactivated. Please Consult to your Administrator.", null);
+                if (user.PwdExpiry < DateTime.Now)
+                    return ServiceResponse<UserLoginResponse>.Succeeded(null, "Your password has been expired");
+                if (_userManager.SupportsUserLockout && await _userManager.GetAccessFailedCountAsync(user) > 0)
+                {
+                    await _userManager.ResetAccessFailedCountAsync(user);
+                }
+                var accessToken = await CreateAccessToken(user);
+                var refreshToken = CreateRefreshToken();
+                var userToken = new UserToken
+                {
+                    UserId = user.Id
+                };
+                userToken.UserRefreshToken = refreshToken;
+                var jwtSettings = _configuration.GetSection("JwtSettings");
+                userToken.RefreshTokenExpiryTime = DateTime.Now.AddDays(Convert.ToDouble(jwtSettings.GetSection("expires").Value));
+                await _db.UserRefreshTokens.AddAsync(userToken);
+                await _db.SaveChangesAsync();
+                await _userManager.UpdateAsync(user);
+                return ServiceResponse<UserLoginResponse>.Succeeded(new UserLoginResponse
+                { AccessToken = accessToken, RefreshToken = refreshToken }, "Login successful");
+            }
+            else
+            {
+                if (_userManager.SupportsUserLockout && await _userManager.GetLockoutEnabledAsync(user))
+                {
+                    await _userManager.AccessFailedAsync(user);
+                }
+                return ServiceResponse<UserLoginResponse>.Failed("Incorrect password", null);
+            }
         }
+
+
         public Task<ServiceResponse<EmailConfirmResponse>> ConfirmEmail(string id, string token)
         {
             throw new NotImplementedException();
@@ -65,7 +129,7 @@ namespace BusReservationSystemApi.Services.AuthServices
             throw new NotImplementedException();
         }
 
-      
+
 
         public Task<ServiceResponse<bool>> ExtendPassword(string email, ExtendPasswordExpiryRequest extendPasswordExpiryRequest)
         {
