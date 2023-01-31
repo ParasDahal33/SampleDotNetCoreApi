@@ -1,4 +1,5 @@
 using BusReservationSystemApi.Data.DBContext;
+using BusReservationSystemApi.Data.SeedData;
 using BusReservationSystemApi.Extension;
 using BusReservationSystemApi.Utils;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -42,6 +43,7 @@ services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
 services.ConfigureIdentity();
 services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
 services.ConfigureCors(myAllowSpecificOrigins);
+
 var app = builder.Build();
 app.UseCors(myAllowSpecificOrigins);
 
@@ -59,16 +61,13 @@ var scopeFactory = app.Services.GetRequiredService<IServiceScopeFactory>();
 using (var scope = scopeFactory.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    //if (db.Database.EnsureCreated())
-    //{
-    //    var dummyDataSeed = new DummyDataSeed();
-    //    await dummyDataSeed.SeedDummyData(db);
-
-    //    var seedData = new SeedData();
-    //    await seedData.SeedUserData(scope.ServiceProvider);
+    if (db.Database.EnsureCreated())
+    {
+        var seedData = new SeedData();
+        await seedData.SeedUserData(scope.ServiceProvider);
 
 
-    //}
+    }
 }
 
 
@@ -80,5 +79,3 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.Run();
-
-public partial class Program { }

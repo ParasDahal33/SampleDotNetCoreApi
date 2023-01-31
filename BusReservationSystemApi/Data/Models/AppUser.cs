@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
-using BusReservationSystemApi.Data.Enum;
+using BusReservationSystemApi.Data.Enumeration;
 
 namespace BusReservationSystemApi.Data.Models
 {

@@ -1,7 +1,7 @@
 ﻿using BusReservationSystemApi.Data.Configuration;
 using BusReservationSystemApi.Data.DTO.Request;
 using BusReservationSystemApi.Data.DTO.Response;
-using BusReservationSystemApi.Data.Enum;
+using BusReservationSystemApi.Data.Enumeration;
 using BusReservationSystemApi.Data.Models;
 using BusReservationSystemApi.Filters;
 using BusReservationSystemApi.Services.AuthServices;
@@ -12,8 +12,9 @@ using System.Net;
 
 namespace BusReservationSystemApi.Controllers
 {
-    [Route("api/[controller]")]
     [ApiController]
+    [Route("/api/auth")]
+    [Produces("application/json")]
     public class AuthController : ControllerBase
     {
 
@@ -29,8 +30,6 @@ namespace BusReservationSystemApi.Controllers
         }
 
 
-
-        [Authorize(Roles = "Admin")]
         [HttpPost("register")]
         [ServiceFilter(typeof(ValidationFilter))]
         public async Task<ActionResult<ServiceResponse<bool>>> Register(UserRegisterRequest registerRequest)

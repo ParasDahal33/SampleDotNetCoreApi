@@ -3,12 +3,13 @@ using BusReservationSystemApi.Data.Configuration;
 using BusReservationSystemApi.Data.DBContext;
 using BusReservationSystemApi.Data.DTO.Request;
 using BusReservationSystemApi.Data.DTO.Response;
-using BusReservationSystemApi.Data.Enum;
+using BusReservationSystemApi.Data.Enumeration;
 using BusReservationSystemApi.Data.Models;
 using BusReservationSystemApi.Helpers.Tokens;
 using BusReservationSystemApi.Services.EmailSenderService;
 using BusReservationSystemApi.Utils;
 using Microsoft.AspNetCore.Identity;
+using System.Data;
 using System.Security.Claims;
 
 namespace BusReservationSystemApi.Services.AuthServices

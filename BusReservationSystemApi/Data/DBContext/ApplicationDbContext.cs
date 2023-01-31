@@ -16,6 +16,7 @@ namespace BusReservationSystemApi.Data.DBContext
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+            modelBuilder.Entity<UserToken>().HasKey(k => new { k.UserId, k.UserRefreshToken });
 
         }
 
