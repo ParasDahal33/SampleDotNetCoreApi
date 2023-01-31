@@ -1,5 +1,4 @@
-﻿
-using AutoMapper;
+﻿using AutoMapper;
 using BusReservationSystemApi.Data.Configuration;
 using BusReservationSystemApi.Data.DBContext;
 using BusReservationSystemApi.Data.DTO.Request;
@@ -8,7 +7,9 @@ using BusReservationSystemApi.Data.Enum;
 using BusReservationSystemApi.Data.Models;
 using BusReservationSystemApi.Helpers.Tokens;
 using BusReservationSystemApi.Services.EmailSenderService;
+using BusReservationSystemApi.Utils;
 using Microsoft.AspNetCore.Identity;
+using System.Security.Claims;
 
 namespace BusReservationSystemApi.Services.AuthServices
 {
@@ -73,7 +74,7 @@ namespace BusReservationSystemApi.Services.AuthServices
             return ServiceResponse<bool>.Succeeded(true, "User created successfully");
         }
 
-        public Task<ServiceResponse<UserLoginResponse>> ValidateUser(UserLoginRequest loginRequest)
+        public async Task<ServiceResponse<UserLoginResponse>> ValidateUser(UserLoginRequest loginRequest)
         {
             var user = await _userManager.FindByEmailAsync(loginRequest.Email);
             if (user == null)
@@ -119,72 +120,239 @@ namespace BusReservationSystemApi.Services.AuthServices
         }
 
 
-        public Task<ServiceResponse<EmailConfirmResponse>> ConfirmEmail(string id, string token)
+        public async Task<ServiceResponse<EmailConfirmResponse>> ConfirmEmail(string id, string token)
         {
-            throw new NotImplementedException();
+            if (string.IsNullOrWhiteSpace(token) || string.IsNullOrWhiteSpace(id))
+                return ServiceResponse<EmailConfirmResponse>.Failed("something is wrong with the link. Try it again", null);
+
+            var user = await _userManager.FindByIdAsync(id);
+
+            if (user is null)
+                return ServiceResponse<EmailConfirmResponse>.Failed("User not found", null);
+
+            if (user.EmailConfirmed && user.PasswordHash != null)
+            {
+                return ServiceResponse<EmailConfirmResponse>.Failed("Email already confirmed!", null);
+            }
+            if (await _emailConfirmToken.ConfirmEmailAction(user, token))
+            {
+                var result = new EmailConfirmResponse
+                {
+                    Id = id,
+                    ResetToken = await _userManager.GeneratePasswordResetTokenAsync(user)
+                };
+                return ServiceResponse<EmailConfirmResponse>.Succeeded(result, "Email has been confirmed.");
+            }
+
+            return ServiceResponse<EmailConfirmResponse>.Failed("Failed to confirm email.", null);
+
         }
 
-        public Task<ServiceResponse<bool>> ChangePassword(ChangePasswordRequest request)
+
+        public async Task<ServiceResponse<bool>> ResetPassword(UserPasswordResetRequest userPasswordResetRequest)
         {
-            throw new NotImplementedException();
+            var user = await _userManager.FindByIdAsync(userPasswordResetRequest.Id);
+            if (user is null)
+                return ServiceResponse<bool>.Failed("User not found", null);
+            if (user.UserStatus == UserStatus.Inactive)
+            {
+                user.UserStatus = UserStatus.Active;
+                user.PwdExpiry = DateTime.Now.AddMonths(6);
+                _db.AppUser.Update(user);
+            }
+            user.PasswordChangeDate = DateTime.Now;
+            var result = await _passwordResetToken.ResetPasswordAction(user, userPasswordResetRequest.Token, userPasswordResetRequest.ConfirmPassword);
+            return result;
         }
 
 
-
-        public Task<ServiceResponse<bool>> ExtendPassword(string email, ExtendPasswordExpiryRequest extendPasswordExpiryRequest)
+        public async Task<ServiceResponse<bool>> ExtendPassword(string email, ExtendPasswordExpiryRequest extendPasswordExpiryRequest)
         {
-            throw new NotImplementedException();
+            var user = await _userManager.FindByEmailAsync(email);
+            if (user is null)
+                return ServiceResponse<bool>.Failed("User not found", null);
+            if (user.PwdExpiry < DateTime.Now)
+            {
+                user.PwdExpiry = DateTime.Now.AddMonths(6);
+                user.PasswordChangeDate = DateTime.Now;
+                var resultOne = await _userManager.UpdateAsync(user);
+                var code = await _userManager.GeneratePasswordResetTokenAsync(user);
+                var result = await _userManager.ResetPasswordAsync(user, code, extendPasswordExpiryRequest.Password);
+                if (result.Succeeded)
+                {
+                    return ServiceResponse<bool>.Succeeded(true, "Password Extended Successfully");
+                }
+                else
+                {
+                    return ServiceResponse<bool>.Failed("Attempt Unsuccessful", null);
+                }
+            }
+            return ServiceResponse<bool>.Failed("Attempt Unsuccessful", null);
         }
 
-        public Task<ServiceResponse<bool>> ForgotPassword(string email, string userType)
+
+        public async Task<ServiceResponse<bool>> ForgotPassword(string email, string userType)
         {
-            throw new NotImplementedException();
+            if (string.IsNullOrWhiteSpace(email))
+                return ServiceResponse<bool>.Failed("Email is empty", null);
+            var user = await _userManager.FindByEmailAsync(email);
+            if (user is null)
+                return ServiceResponse<bool>.Failed("User not found", null);
+
+            string token = await _userManager.GeneratePasswordResetTokenAsync(user);
+            var url = CreateUrlLink(user.Id, token, UrlActions.resetpassword.ToString());
+
+            var mailAddress = new EmailAddress { DisplayName = user.UserName, Address = user.Email };
+            var message = new Message(new EmailAddress[] { mailAddress }, "Reset your password", Constants.GetForgetPasswordHtml(user.UserName, url), null);
+
+            await _emailSenderService.SendEmailAsync(message);
+            return ServiceResponse<bool>.Succeeded(true, "Check your email to reset the password");
+
         }
 
-        public string GetUserEmail()
+        public async Task<ServiceResponse<bool>> ChangePassword(ChangePasswordRequest request)
         {
-            throw new NotImplementedException();
+            var userId = _httpContextAccessor.HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var user = await _userManager.FindByIdAsync(userId);
+            if (request.Password != request.ConfirmPassword)
+            {
+                return ServiceResponse<bool>.Failed("Incorrect Confirm password", null);
+            }
+            if (user is null)
+                return ServiceResponse<bool>.Failed("User not found", null);
+            var result = await _userManager.ChangePasswordAsync(user, request.OldPassword, request.Password);
+            if (result.Succeeded)
+            {
+                return ServiceResponse<bool>.Succeeded(true, "Password Changed Successfully");
+            }
+            else
+            {
+                return ServiceResponse<bool>.Failed("Attempt Unsuccessful", null);
+            }
         }
 
-        public int GetUserId()
+
+        public async Task<ServiceResponse<bool>> SendEmailConfirmation(string email)
         {
-            throw new NotImplementedException();
+            if (string.IsNullOrWhiteSpace(email))
+                return ServiceResponse<bool>.Failed("Email is empty", null);
+            var user = await _userManager.FindByEmailAsync(email);
+            if (user is null)
+                return ServiceResponse<bool>.Failed("User not found", null);
+
+            var token = await _emailConfirmToken.GenerateToken(user);
+            var url = CreateUrlLink(user.Id, token, UrlActions.confirmEmail.ToString());
+            var mailAddress = new EmailAddress { DisplayName = user.UserName, Address = user.Email };
+            var message = new Message(new EmailAddress[] { mailAddress }, "Email Confirmation", Constants.GetConfirmEmailHtml(user.UserName, url), null);
+            await _emailSenderService.SendEmailAsync(message);
+            return ServiceResponse<bool>.Succeeded(true, "Check your email to verify.");
         }
 
-        public Task<ServiceResponse<UserLoginResponse>> RefreshToken(TokenRefreshRequest tokenRefreshRequest)
+        public string GetUserEmail() => _httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.Email);
+        public int GetUserId() => int.Parse(_httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.NameIdentifier));
+
+
+        public async Task<ServiceResponse<UserLoginResponse>> RefreshToken(TokenRefreshRequest tokenRefreshRequest)
         {
-            throw new NotImplementedException();
+
+            var currentToken = _db.UserRefreshTokens.FirstOrDefault(t => t.UserRefreshToken == tokenRefreshRequest.RefreshToken);
+
+
+            if (currentToken == null)
+            {
+                return ServiceResponse<UserLoginResponse>.Failed("Invalid token.", null);
+            }
+
+            var userId = currentToken.UserId;
+            var user = await _userManager.FindByIdAsync(userId);
+
+            if (user == null)
+            {
+                return ServiceResponse<UserLoginResponse>.Failed("Invalid token.", null);
+            }
+
+
+            if (currentToken.RefreshTokenExpiryTime <= DateTime.Now)
+            {
+                return ServiceResponse<UserLoginResponse>.Failed("Token already expired.", null);
+            }
+
+            var newAccessToken = await CreateAccessToken(user);
+            var newRefreshToken = CreateRefreshToken();
+
+            // Add the new refresh token to te database.
+            var newUserToken = new UserToken
+            {
+                UserId = user.Id
+            };
+
+            var jwtSettings = _configuration.GetSection("JwtSettings");
+
+            newUserToken.UserRefreshToken = newRefreshToken;
+            newUserToken.RefreshTokenExpiryTime = DateTime.Now.AddDays(Convert.ToDouble(jwtSettings.GetSection("expires").Value));
+
+            // TODO try catch
+            using var transaction = _db.Database.BeginTransaction();
+            _db.UserRefreshTokens.Add(newUserToken);
+            // Remove the old token from the database.
+            _db.UserRefreshTokens.Remove(currentToken);
+            _db.SaveChanges();
+            await transaction.CommitAsync();
+
+            await _userManager.UpdateAsync(user);
+
+            return ServiceResponse<UserLoginResponse>.Succeeded(new UserLoginResponse
+            { AccessToken = newAccessToken, RefreshToken = newRefreshToken }, "Token Refreshed successfully.");
+
         }
 
-        public Task<ServiceResponse<bool>> ReSendEmailConfirmation(string Id)
+        public async Task<ServiceResponse<bool>> ReSendEmailConfirmation(string Id)
         {
-            throw new NotImplementedException();
+            var user = await _userManager.FindByIdAsync(Id);
+            if (user is null)
+                return ServiceResponse<bool>.Failed("User not found", null);
+            if (user.EmailConfirmed == true)
+            {
+                return ServiceResponse<bool>.Failed("User Email already confirmed.", null);
+            }
+            var result = await SendEmailConfirmation(user.Email);
+            return ServiceResponse<bool>.Succeeded(true, "Confirmation email sent successfully.");
         }
 
-        public Task<ServiceResponse<bool>> ResetPassword(UserPasswordResetRequest userPasswordResetRequest)
+        public async Task<ServiceResponse<bool>> RevokeLoggedInUser()
         {
-            throw new NotImplementedException();
+            var userEmail = GetUserEmail();
+            var user = await _userManager.FindByEmailAsync(userEmail);
+            if (user is null)
+                return ServiceResponse<bool>.Failed("User not found", null);
+
+            // Delete all the tokens associated with the user from the database.
+            var currentUserTokens = _db.UserRefreshTokens.Where(u => u.UserId == user.Id);
+            _db.UserRefreshTokens.RemoveRange(currentUserTokens);
+            await _db.SaveChangesAsync();
+            return ServiceResponse<bool>.Succeeded(true, "User token revoked successfully");
         }
 
-        public Task<ServiceResponse<bool>> RevokeAllToken()
+        public async Task<ServiceResponse<bool>> RevokeToken(string userId)
         {
-            throw new NotImplementedException();
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user is null)
+                return ServiceResponse<bool>.Failed("User not found", null);
+
+            // Delete all the tokens associated with the user from the database.
+            var currentUserTokens = _db.UserRefreshTokens.Where(u => u.UserId == user.Id);
+            _db.UserRefreshTokens.RemoveRange(currentUserTokens);
+            await _db.SaveChangesAsync();
+            return ServiceResponse<bool>.Succeeded(true, "User token revoked successfully");
         }
 
-        public Task<ServiceResponse<bool>> RevokeLoggedInUser()
+        public async Task<ServiceResponse<bool>> RevokeAllToken()
         {
-            throw new NotImplementedException();
+            _db.UserRefreshTokens.RemoveRange(_db.UserRefreshTokens);
+            await _db.SaveChangesAsync();
+            return ServiceResponse<bool>.Succeeded(true, "All User Token revoked successfully.");
         }
 
-        public Task<ServiceResponse<bool>> RevokeToken(string userId)
-        {
-            throw new NotImplementedException();
-        }
-
-        public Task<ServiceResponse<bool>> SendEmailConfirmation(string email)
-        {
-            throw new NotImplementedException();
-        }
 
     }
 }
