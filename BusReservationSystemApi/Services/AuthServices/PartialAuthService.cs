@@ -1,6 +1,4 @@
-﻿
-
-using BusReservationSystemApi.Data.Models;
+﻿using BusReservationSystemApi.Data.Models;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -36,7 +34,7 @@ namespace BusReservationSystemApi.Services.AuthServices
                  issuer: jwtSettings.GetSection("ValidIssuer").Value,
                  audience: jwtSettings.GetSection("ValidAudience").Value,
                  claims: claims,
-                 expires: DateTime.Now.AddSeconds(Convert.ToDouble(jwtSettings.GetSection("expires").Value)),
+                 expires: DateTime.Now.AddMinutes(Convert.ToDouble(jwtSettings.GetSection("expires").Value)),
                 signingCredentials: signingCredentials
              );
             return tokenOptions;

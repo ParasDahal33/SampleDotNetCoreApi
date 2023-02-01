@@ -12,8 +12,6 @@ namespace BusReservationSystemApi.Data.DTO.Request
         public string UserName { get; set; }
         [Required(ErrorMessage = "Email is required.")]
         public string Email { get; set; }
-        public string UserType { get; set; }
-        public int? ClientId { get; set; }
 
         [Required]
         public string Password { get; set; }
