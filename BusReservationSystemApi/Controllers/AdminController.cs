@@ -25,7 +25,7 @@ namespace BusReservationSystemApi.Controllers
         [HttpGet("users")]
         public ActionResult<ServiceResponse<List<UserDataResponse>>> ListUsers(string UserName = "")
         {
-            var response = _adminService.ListUsers(UserName);
+            var response = _adminService.ListUsersAsync(UserName);
             if (!response.Success)
             {
                 return BadRequest(response);

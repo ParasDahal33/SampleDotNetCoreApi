@@ -9,7 +9,7 @@ namespace BusReservationSystemApi.Services.AdminServices
     {
         ServiceResponse<List<RoleDataResponse>> ListRoles();
         ServiceResponse<UserRoleResponse> ListUserRoles(string userId);
-        ServiceResponse<List<UserDataResponse>> ListUsers(string search);
+        ServiceResponse<List<UserDataResponse>> ListUsersAsync(string search);
         Task<ServiceResponse<bool>> ChangeUserRole(RoleChangeRequest roleRequest);
         Task<ServiceResponse<bool>> CreateRole(CreateRoleRequest request);
         Task<ServiceResponse<bool>> ChangeUserStatus(ViewUserRequest viewUserRequest);

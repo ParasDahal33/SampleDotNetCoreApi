@@ -7,6 +7,8 @@ using BusReservationSystemApi.Data.Enumeration;
 using BusReservationSystemApi.Data.Models;
 using BusReservationSystemApi.Utils;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using System.Collections.Generic;
 using System.Data;
 using System.Security.Claims;
 
@@ -155,7 +157,7 @@ namespace BusReservationSystemApi.Services.AdminServices
             {
                 user.Role = role.Name;
             }
-           
+
             var mapUser = _mapper.Map<UserDataResponse>(user);
             return ServiceResponse<UserDataResponse>.Succeeded(mapUser, "Success");
         }
@@ -169,7 +171,7 @@ namespace BusReservationSystemApi.Services.AdminServices
             {
                 user.Role = role.Name;
             }
-            
+
             var mapUser = _mapper.Map<UserDataResponse>(user);
             if (user == null)
             {
@@ -211,14 +213,25 @@ namespace BusReservationSystemApi.Services.AdminServices
 
         }
 
-        public ServiceResponse<List<UserDataResponse>> ListUsers(string search)
+        public ServiceResponse<List<UserDataResponse>> ListUsersAsync(string search)
         {
             var searchParams = search ?? "";
-            var listByFullName =  _db.AppUser.Where(d => d.FullName.ToLower().Contains(searchParams.ToLower())).OrderByDescending(x => x.AccountCreatedDate);
+            var listByFullName = _db.AppUser.Where(d => d.FullName.ToLower().Contains(searchParams.ToLower())).OrderByDescending(x => x.AccountCreatedDate);
+            
             var mapUser = _mapper.Map<List<UserDataResponse>>(listByFullName);
             if (mapUser == null)
             {
                 return ServiceResponse<List<UserDataResponse>>.Failed("No User Found.", null);
+            }
+            foreach (var user in mapUser)
+            {
+                var userRole = _db.UserRoles.FirstOrDefault(r => r.UserId == user.Id);
+                if (userRole == null)
+                {
+                    return ServiceResponse<List<UserDataResponse>>.Failed("User Role Not Declared.", null);
+                }
+                var role = _db.Roles.FirstOrDefault(x => x.Id == userRole.RoleId);
+                user.Role = role.Name;
             }
             return ServiceResponse<List<UserDataResponse>>.Succeeded(mapUser, "List Retrieved Successfully.");
         }
