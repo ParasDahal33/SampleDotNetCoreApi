@@ -51,12 +51,6 @@ namespace BusReservationSystemApi.Controllers
             var user = await _userManager.FindByEmailAsync(userLoginRequest.Email);
             if (user != null)
             {
-                // TODO Set to enum
-
-                if (user.UserStatus == UserStatus.Inactive)
-                {
-                    return BadRequest("Your account has been deactivated. Please contact the admin.");
-                }
                 var response = await _authService.ValidateUser(userLoginRequest);
                 if (!response.Success)
                 {

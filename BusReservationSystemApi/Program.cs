@@ -66,7 +66,6 @@ using (var scope = scopeFactory.CreateScope())
         var seedData = new SeedData();
         await seedData.SeedUserData(scope.ServiceProvider);
 
-
     }
 }
 
