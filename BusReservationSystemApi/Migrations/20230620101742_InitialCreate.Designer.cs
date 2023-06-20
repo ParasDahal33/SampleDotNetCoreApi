@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace BusReservationSystemApi.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20230213054506_InitialCreate")]
+    [Migration("20230620101742_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -114,11 +114,11 @@ namespace BusReservationSystemApi.Migrations
                         {
                             Id = "5f1e8d3d-329e-474a-9526-1682fe508898",
                             AccessFailedCount = 0,
-                            AccountCreatedDate = new DateTime(2023, 2, 13, 11, 30, 6, 362, DateTimeKind.Local).AddTicks(8751),
-                            ConcurrencyStamp = "601a7ba9-944d-470c-8f68-aa5a686eb566",
+                            AccountCreatedDate = new DateTime(2023, 6, 20, 16, 2, 42, 324, DateTimeKind.Local).AddTicks(4012),
+                            ConcurrencyStamp = "f8f0c744-681e-439a-9518-822d92c50c29",
                             Email = "test@gmail.com",
                             EmailConfirmed = true,
-                            ExpiryDate = new DateTime(2033, 2, 13, 11, 30, 6, 362, DateTimeKind.Local).AddTicks(8729),
+                            ExpiryDate = new DateTime(2033, 6, 20, 16, 2, 42, 324, DateTimeKind.Local).AddTicks(3995),
                             FullName = "Super Admin",
                             LockoutEnabled = false,
                             NormalizedEmail = "TEST@GMAIL.COM",
@@ -127,7 +127,7 @@ namespace BusReservationSystemApi.Migrations
                             PasswordHash = "AQAAAAIAAYagAAAAECTYdnmMx0wFy6TQqoCjGEDTHSstulzRiwtWErtCDXf3ffYv4YqrFVkIFc5G29ZROg==",
                             PhoneNumber = "0133742069",
                             PhoneNumberConfirmed = true,
-                            PwdExpiry = new DateTime(2090, 2, 13, 11, 30, 6, 362, DateTimeKind.Local).AddTicks(8793),
+                            PwdExpiry = new DateTime(2090, 6, 20, 16, 2, 42, 324, DateTimeKind.Local).AddTicks(4039),
                             SecurityStamp = "VYS6BLZZ6E4F4KNOTHNXLI4ILDRSRNBG",
                             TwoFactorEnabled = false,
                             UserName = "Admin",
